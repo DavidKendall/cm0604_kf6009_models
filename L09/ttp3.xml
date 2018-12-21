@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.1//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_2.dtd'>
+<nta>
+	<declaration>// Place global declarations here.
+clock h1, h2;
+chan a;
+</declaration>
+	<template>
+		<name x="5" y="5">P1</name>
+		<declaration>// Place local declarations here.</declaration>
+		<location id="id0" x="-170" y="-34">
+		</location>
+		<location id="id1" x="-374" y="-34">
+			<label kind="invariant" x="-408" y="-17">h1 &lt;= 4</label>
+		</location>
+		<init ref="id1"/>
+		<transition>
+			<source ref="id1"/>
+			<target ref="id0"/>
+			<label kind="guard" x="-340" y="-51">h1 &gt;= 2</label>
+			<label kind="synchronisation" x="-246" y="-51">a!</label>
+		</transition>
+	</template>
+	<template>
+		<name>P2</name>
+		<location id="id2" x="-510" y="0">
+		</location>
+		<location id="id3" x="-714" y="0">
+			<label kind="invariant" x="-748" y="17">h2 &lt;= 3</label>
+		</location>
+		<init ref="id3"/>
+		<transition>
+			<source ref="id3"/>
+			<target ref="id2"/>
+			<label kind="guard" x="-680" y="-17">h2 &gt;= 1</label>
+			<label kind="synchronisation" x="-586" y="-17">a?</label>
+		</transition>
+	</template>
+	<system>
+// List one or more processes to be composed into a system.
+system P1, P2;
+    </system>
+	<queries>
+	</queries>
+</nta>

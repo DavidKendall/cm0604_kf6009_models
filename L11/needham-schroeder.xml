@@ -1,0 +1,342 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.1//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_2.dtd'>
+<nta>
+	<declaration>// Place global declarations here.
+urgent chan network;  // A single urgent channel models the whole network
+
+typedef struct {
+          int[0,15] key;
+          int[0,15] data1;
+          int[0,15] data2;
+} encrypted_t;       // data1 and data2 encrypted with the key
+
+typedef struct {
+          int[0,15] mtype;     // Message type : msg1, msg2 or msg3
+          int[0,15] receiver;  // Intended receiver
+          encrypted_t crypt;   // Encrypted part of the message
+} message_t;        
+
+const int[0,15] A = 0;         // Alice
+const int[0,15] B = 1;         // Bob
+const int[0,15] I = 2;         // Intruder
+const int[0,15] msg1 = 3;
+const int[0,15] msg2 = 4;
+const int[0,15] msg3 = 5;
+const int[0,15] nonce[3] = {6, 7, 8};  // Nonces for {Alice, Bob, Intruder}
+const int[0,15] key[3] = {9, 10, 11};  // Keys for {Alice, Bob, Intruder}
+const int[0,15] null = 12;             // Dummy data
+
+int[0,15] partner[3];          // Parners for {Alice, Bob, Intruder}
+ 
+meta message_t tmp;            // Auxiliary variable for message-passing
+
+// Constructors for encrypted_t and message_t
+encrypted_t E(int[0,15] key, int[0,15] data1, int[0,15] data2) {
+  encrypted_t result = {key, data1, data2};
+  return result;
+}
+
+message_t M(int[0,15] mtype, int[0,15] receiver, int[0,15] key, int[0,15] data1, int[0,15] data2) {
+  encrypted_t e = E(key, data1, data2);
+  message_t result = {mtype, receiver, e};
+  return result;
+}
+
+bool isAgent(int[0,15] v) {
+  return ((v == 0) || (v == 1) || (v == 2)); 
+}
+</declaration>
+	<template>
+		<name x="5" y="5">Alice</name>
+		<declaration>// Place local declarations here.
+message_t msg;</declaration>
+		<location id="id0" x="1088" y="0">
+			<name x="1078" y="-34">ok</name>
+		</location>
+		<location id="id1" x="646" y="0">
+			<label kind="invariant" x="493" y="17">msg.mtype == msg2 &amp;&amp; msg.receiver == A &amp;&amp;
+msg.crypt.key == key[A] &amp;&amp; msg.crypt.data1 == nonce[A]</label>
+			<committed/>
+		</location>
+		<location id="id2" x="374" y="0">
+		</location>
+		<location id="id3" x="0" y="0">
+			<committed/>
+		</location>
+		<location id="id4" x="0" y="-170">
+		</location>
+		<init ref="id4"/>
+		<transition>
+			<source ref="id1"/>
+			<target ref="id0"/>
+			<label kind="synchronisation" x="757" y="-17">network!</label>
+			<label kind="assignment" x="663" y="0">tmp = M(msg3, partner[A], key[partner[A]], msg.crypt.data2, null)</label>
+		</transition>
+		<transition>
+			<source ref="id2"/>
+			<target ref="id1"/>
+			<label kind="synchronisation" x="476" y="-17">network?</label>
+			<label kind="assignment" x="476" y="0">msg = tmp</label>
+		</transition>
+		<transition>
+			<source ref="id3"/>
+			<target ref="id2"/>
+			<label kind="synchronisation" x="145" y="-17">network!</label>
+			<label kind="assignment" x="8" y="8">tmp = M(msg1, partner[A], key[partner[A]], A, nonce[A])</label>
+		</transition>
+		<transition>
+			<source ref="id4"/>
+			<target ref="id3"/>
+			<label kind="select" x="8" y="-127">a : int[B,I]</label>
+			<label kind="assignment" x="8" y="-110">partner[A] = a</label>
+		</transition>
+	</template>
+	<template>
+		<name>Bob</name>
+		<declaration>message_t msg;</declaration>
+		<location id="id5" x="510" y="0">
+			<name x="527" y="-9">ok</name>
+			<label kind="invariant" x="433" y="17">msg.mtype == msg3 &amp;&amp; msg.receiver == B &amp;&amp;
+msg.crypt.key == key[B] &amp;&amp; msg.crypt.data1 == nonce[B]</label>
+		</location>
+		<location id="id6" x="340" y="0">
+		</location>
+		<location id="id7" x="-136" y="0">
+			<label kind="invariant" x="-280" y="-51">msg.mtype == msg1 &amp;&amp; msg.receiver == B &amp;&amp; 
+msg.crypt.key == key[B] &amp;&amp; isAgent(partner[B])</label>
+			<committed/>
+		</location>
+		<location id="id8" x="-476" y="0">
+		</location>
+		<init ref="id8"/>
+		<transition>
+			<source ref="id6"/>
+			<target ref="id5"/>
+			<label kind="synchronisation" x="374" y="-17">network?</label>
+			<label kind="assignment" x="374" y="0">msg = tmp</label>
+		</transition>
+		<transition>
+			<source ref="id7"/>
+			<target ref="id6"/>
+			<label kind="synchronisation" x="68" y="-17">network!</label>
+			<label kind="assignment" x="-119" y="8">tmp = M(msg2, partner[B], key[partner[B]], msg.crypt.data2, nonce[B])</label>
+		</transition>
+		<transition>
+			<source ref="id8"/>
+			<target ref="id7"/>
+			<label kind="synchronisation" x="-408" y="-17">network?</label>
+			<label kind="assignment" x="-433" y="0">msg = tmp, partner[B] = msg.crypt.data1</label>
+		</transition>
+	</template>
+	<template>
+		<name>Intruder</name>
+		<declaration>int[0,15] mtype;
+message_t msg;
+encrypted_t spoof;
+encrypted_t intercepted;
+bool knows_nonce[2] = {false, false};
+
+</declaration>
+		<location id="id9" x="-408" y="-544">
+			<committed/>
+		</location>
+		<location id="id10" x="-1836" y="-374">
+			<committed/>
+		</location>
+		<location id="id11" x="-1564" y="-374">
+			<committed/>
+		</location>
+		<location id="id12" x="-1360" y="-374">
+			<committed/>
+		</location>
+		<location id="id13" x="-408" y="-374">
+			<committed/>
+		</location>
+		<location id="id14" x="-646" y="-374">
+			<committed/>
+		</location>
+		<location id="id15" x="-884" y="-374">
+		</location>
+		<init ref="id15"/>
+		<transition>
+			<source ref="id12"/>
+			<target ref="id10"/>
+			<label kind="assignment" x="-1768" y="-204">spoof = intercepted</label>
+			<nail x="-1360" y="-204"/>
+			<nail x="-1836" y="-204"/>
+		</transition>
+		<transition>
+			<source ref="id11"/>
+			<target ref="id10"/>
+			<label kind="assignment" x="-1768" y="-238">spoof.data2 = null</label>
+			<nail x="-1564" y="-238"/>
+			<nail x="-1836" y="-238"/>
+		</transition>
+		<transition>
+			<source ref="id12"/>
+			<target ref="id11"/>
+			<label kind="assignment" x="-1547" y="-544">spoof.data1 = null</label>
+			<nail x="-1360" y="-544"/>
+			<nail x="-1564" y="-544"/>
+		</transition>
+		<transition>
+			<source ref="id15"/>
+			<target ref="id12"/>
+			<label kind="select" x="-1292" y="-391">m : int[3,5], r : int[A,B]</label>
+			<label kind="assignment" x="-1292" y="-374">mtype = m, partner[I] = r, spoof.key = key[r]</label>
+		</transition>
+		<transition>
+			<source ref="id13"/>
+			<target ref="id9"/>
+			<label kind="guard" x="-331" y="-459">msg.crypt.data1 == nonce[A] ||
+msg.crypt.data2 == nonce[A]</label>
+			<label kind="assignment" x="-323" y="-425">knows_nonce[A] = true</label>
+			<nail x="-255" y="-459"/>
+		</transition>
+		<transition>
+			<source ref="id13"/>
+			<target ref="id9"/>
+			<label kind="guard" x="-637" y="-442">not (msg.crypt.data1 == nonce[A] ||
+        msg.crypt.data2 == nonce[A])</label>
+			<nail x="-544" y="-459"/>
+		</transition>
+		<transition>
+			<source ref="id9"/>
+			<target ref="id15"/>
+			<label kind="guard" x="-858" y="-561">not (msg.crypt.data1 == nonce[B] || msg.crypt.data2 == nonce[B])</label>
+			<label kind="assignment" x="-756" y="-544">msg = M(0,0,0,0,0)</label>
+			<nail x="-884" y="-544"/>
+		</transition>
+		<transition>
+			<source ref="id9"/>
+			<target ref="id15"/>
+			<label kind="guard" x="-841" y="-629">msg.crypt.data1 == nonce[B] || msg.crypt.data2 == nonce[B]</label>
+			<label kind="assignment" x="-841" y="-612">knows_nonce[B] = true, msg = M(0,0,0,0,0)</label>
+			<nail x="-408" y="-612"/>
+			<nail x="-884" y="-612"/>
+		</transition>
+		<transition>
+			<source ref="id14"/>
+			<target ref="id15"/>
+			<label kind="assignment" x="-841" y="-433">msg = M(0,0,0,0,0)</label>
+			<nail x="-646" y="-433"/>
+			<nail x="-884" y="-433"/>
+		</transition>
+		<transition>
+			<source ref="id12"/>
+			<target ref="id11"/>
+			<label kind="guard" x="-1530" y="-425">knows_nonce[A]</label>
+			<label kind="assignment" x="-1546" y="-408">spoof.data1 = nonce[A]</label>
+			<nail x="-1360" y="-408"/>
+			<nail x="-1564" y="-408"/>
+		</transition>
+		<transition>
+			<source ref="id12"/>
+			<target ref="id11"/>
+			<label kind="guard" x="-1530" y="-459">knows_nonce[B]</label>
+			<label kind="assignment" x="-1547" y="-442">spoof.data1 = nonce[B]</label>
+			<nail x="-1360" y="-442"/>
+			<nail x="-1564" y="-442"/>
+		</transition>
+		<transition>
+			<source ref="id12"/>
+			<target ref="id11"/>
+			<label kind="assignment" x="-1547" y="-476">spoof.data1 = nonce[I]</label>
+			<nail x="-1360" y="-476"/>
+			<nail x="-1564" y="-476"/>
+		</transition>
+		<transition>
+			<source ref="id12"/>
+			<target ref="id11"/>
+			<label kind="select" x="-1530" y="-527">a : int[A,B]</label>
+			<label kind="assignment" x="-1546" y="-510">spoof.data1 = a</label>
+			<nail x="-1360" y="-510"/>
+			<nail x="-1564" y="-510"/>
+		</transition>
+		<transition>
+			<source ref="id11"/>
+			<target ref="id10"/>
+			<label kind="select" x="-1759" y="-391">a : int[A,B]</label>
+			<label kind="assignment" x="-1768" y="-374">spoof.data2 = a</label>
+		</transition>
+		<transition>
+			<source ref="id11"/>
+			<target ref="id10"/>
+			<label kind="assignment" x="-1768" y="-340">spoof.data2 = nonce[I]</label>
+			<nail x="-1564" y="-340"/>
+			<nail x="-1836" y="-340"/>
+		</transition>
+		<transition>
+			<source ref="id11"/>
+			<target ref="id10"/>
+			<label kind="guard" x="-1759" y="-323">knows_nonce[B]</label>
+			<label kind="assignment" x="-1768" y="-306">spoof.data2 = nonce[B]</label>
+			<nail x="-1564" y="-306"/>
+			<nail x="-1836" y="-306"/>
+		</transition>
+		<transition>
+			<source ref="id11"/>
+			<target ref="id10"/>
+			<label kind="guard" x="-1759" y="-289">knows_nonce[A]</label>
+			<label kind="assignment" x="-1768" y="-272">spoof.data2 = nonce[A]</label>
+			<nail x="-1564" y="-272"/>
+			<nail x="-1836" y="-272"/>
+		</transition>
+		<transition>
+			<source ref="id10"/>
+			<target ref="id15"/>
+			<label kind="synchronisation" x="-1419" y="-629">network!</label>
+			<label kind="assignment" x="-1547" y="-612">tmp = M(mtype, partner[I], spoof.key, spoof.data1, spoof.data2),
+intercepted = E(0,0,0)</label>
+			<nail x="-1836" y="-612"/>
+			<nail x="-884" y="-612"/>
+		</transition>
+		<transition>
+			<source ref="id12"/>
+			<target ref="id11"/>
+		</transition>
+		<transition>
+			<source ref="id14"/>
+			<target ref="id15"/>
+			<label kind="assignment" x="-841" y="-493">intercepted = msg.crypt,
+msg = M(0,0,0,0,0)</label>
+			<nail x="-646" y="-493"/>
+			<nail x="-884" y="-493"/>
+		</transition>
+		<transition>
+			<source ref="id14"/>
+			<target ref="id13"/>
+			<label kind="guard" x="-620" y="-391">msg.crypt.key == key[I]</label>
+		</transition>
+		<transition>
+			<source ref="id15"/>
+			<target ref="id14"/>
+			<label kind="synchronisation" x="-782" y="-391">network?</label>
+			<label kind="assignment" x="-782" y="-374">msg = tmp</label>
+		</transition>
+	</template>
+	<system>
+// List one or more processes to be composed into a system.
+system Alice, Bob, Intruder;
+    </system>
+	<queries>
+		<query>
+			<formula>E&lt;&gt; (Alice.ok &amp;&amp; Bob.ok &amp;&amp; partner[A] == B &amp;&amp; partner[B] == A &amp;&amp; !(Intruder.knows_nonce[A] || Intruder.knows_nonce[B])) 
+			</formula>
+			<comment>Let's just check that there's some execution where the protocol behaves properly!
+			</comment>
+		</query>
+		<query>
+			<formula>A[] ((Alice.ok &amp;&amp; Bob.ok) imply ((partner[A] == B) imply (partner[B] == A &amp;&amp; !(Intruder.knows_nonce[A] || Intruder.knows_nonce[B]))))
+			</formula>
+			<comment>If Alice and Bob have completed their runs and Bob is Alice's partner then Alice is Bob's partner and the Intruder does not know either Alice's secret or Bob's secret. Since Alice and Bob are both honest agents we expect this property to be satisfied and UPPAAL confirms that it is.
+			</comment>
+		</query>
+		<query>
+			<formula>A[] ((Alice.ok &amp;&amp; Bob.ok) imply ((partner[B] == A) imply (partner[A] == B &amp;&amp; !(Intruder.knows_nonce[A] || Intruder.knows_nonce[B]))))
+			</formula>
+			<comment>
+			</comment>
+		</query>
+	</queries>
+</nta>
